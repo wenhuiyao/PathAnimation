@@ -12,18 +12,16 @@ fun ImageVector.toPath(dst: Path) {
     return dst.addVectorNode(root)
 }
 
-fun ImageVector.toPath(): Path {
-    return Path().apply { addVectorNode(root) }
-}
+/**
+ * Convert an imageVector to a path. The final path won't take into account imageVector's viewPort size.
+ */
+fun ImageVector.toPath() = Path().apply { addVectorNode(root) }
 
 private fun Path.addVectorNode(node: VectorNode) {
     when (node) {
-        is VectorGroup -> {
-            node.iterator().forEach { addVectorNode(it) }
-        }
-
-        is VectorPath -> {
-            addPath(node.pathData.toPath())
-        }
+        is VectorGroup -> node.iterator().forEach { addVectorNode(it) }
+        is VectorPath -> addPath(node.pathData.toPath())
     }
 }
+
+

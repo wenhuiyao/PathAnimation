@@ -51,7 +51,7 @@ private class PathAnimationNode(
         this.segmentLength = segmentLength
         if (this.active != active) {
             this.active = active
-            if (active) startAnimation() else stopAnimation()
+            if (active) startAnimation() else stopAndRunFillAnimation()
         }
     }
 
@@ -59,15 +59,13 @@ private class PathAnimationNode(
         if (active) {
             sideEffect { startAnimation() }
         } else {
-            // Show filled path
+            // Show filled path on inactive mode
             drawSegment(0f, pathLength)
         }
     }
 
     private fun startAnimation() {
-        if (!isAttached) return
-        if (shimmerAnimationJob?.isActive == true) {
-            // Animation is running
+        if (!isAttached || shimmerAnimationJob?.isActive == true) {
             return
         }
         startRepeatAnimation()
@@ -87,7 +85,7 @@ private class PathAnimationNode(
             runAnimation(endValue, startValue, segmentLengthPx)
         }.also { job ->
             job.invokeOnCompletion {
-                if (active && !job.isCancelled) {
+                if (isAttached && active && !job.isCancelled) {
                     startRepeatAnimation()
                 }
             }
@@ -104,12 +102,13 @@ private class PathAnimationNode(
         }
     }
 
-    private fun stopAnimation() {
+    private fun stopAndRunFillAnimation() {
         if (!isAttached) return
         fillAnimationJob = coroutineScope.launch {
             // Wait until shimmering animation finished
             shimmerAnimationJob?.join()
 
+            // Start running fill animation
             Animatable(0f).animateTo(
                 targetValue = pathLength,
                 animationSpec = animationSpec

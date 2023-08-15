@@ -1,5 +1,7 @@
 package dev.wenhui.pathanimation.path
 
+import androidx.compose.runtime.Immutable
+import androidx.compose.runtime.Stable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.Measurable
 import androidx.compose.ui.layout.MeasureResult
@@ -15,17 +17,20 @@ import kotlin.math.roundToInt
 /**
  * Set a fixed height, and automatically calculate width to match the image vector's aspect ratio
  */
-fun Modifier.fixedHeightMatchRatio(height: Dp) = this then ImageVectorMeasureOptionElement(
+@Stable
+fun Modifier.fitHeight(height: Dp) = this then ImageVectorMeasureOptionElement(
     MeasureOption.FixedHeightMatchRatio(height)
 )
 
 /**
  * Set a fixed width, and automatically calculate height to match the image vector's aspect ratio
  */
-fun Modifier.fixedWidthMatchRatio(width: Dp) = this then ImageVectorMeasureOptionElement(
+@Stable
+fun Modifier.fitWidth(width: Dp) = this then ImageVectorMeasureOptionElement(
     MeasureOption.FixedWidthMatchRatio(width)
 )
 
+@Immutable
 private sealed interface MeasureOption {
     data class FixedHeightMatchRatio(val height: Dp) : MeasureOption
     data class FixedWidthMatchRatio(val width: Dp) : MeasureOption
@@ -60,7 +65,7 @@ private class ImageVectorMeasureOptionNode(
         measurable: Measurable,
         constraints: Constraints
     ): MeasureResult {
-        val measureOption = this@ImageVectorMeasureOptionNode.measureOption
+        val measureOption = measureOption
         val width: Int
         val height: Int
         val ratio = intrinsicBounds.width / intrinsicBounds.height

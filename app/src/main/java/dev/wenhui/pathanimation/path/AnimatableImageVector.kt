@@ -35,6 +35,7 @@ import androidx.compose.ui.res.vectorResource
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import kotlin.math.roundToInt
@@ -43,6 +44,8 @@ import kotlin.math.roundToInt
  * An animatable image vector.
  *
  * To use it, provide an [ImageVector] to [imageRes], and it's animation path to [pathRes].
+ *
+ * @param pathOffset Extra offset match path with image vector
  */
 @Composable
 fun AnimatedImageVector(
@@ -50,6 +53,7 @@ fun AnimatedImageVector(
     @DrawableRes pathRes: Int,
     pathStrokeWidth: Dp,
     modifier: Modifier = Modifier,
+    pathOffset: DpOffset = DpOffset.Zero,
     backgroundColor: Color = Color.LightGray,
     fillColor: Color = MaterialTheme.colorScheme.secondary,
 ) {
@@ -64,6 +68,7 @@ fun AnimatedImageVector(
             imagePath,
             animationPath,
             pathStrokeWidth,
+            pathOffset,
             backgroundColor,
             fillColor
         ) then modifier,
@@ -89,8 +94,9 @@ fun Modifier.imageVector(
     imagePath: Path,
     animationPath: Path,
     pathStrokeWidth: Dp,
+    pathOffset: DpOffset,
     backgroundColor: Color,
-    fillColor: Color
+    fillColor: Color,
 ) = this.graphicsLayer {
     // Enable offscreen composition to support blendMode
     compositingStrategy = CompositingStrategy.Offscreen
@@ -98,6 +104,7 @@ fun Modifier.imageVector(
     imagePath,
     animationPath,
     pathStrokeWidth,
+    pathOffset,
     backgroundColor,
     fillColor
 )
@@ -106,6 +113,7 @@ private data class AnimatableImageVectorModifier(
     private val imagePath: Path,
     private val animationPath: Path,
     private val pathStrokeWidth: Dp,
+    private val pathOffset: DpOffset,
     private val backgroundColor: Color,
     private val fillColor: Color,
 ) : ModifierNodeElement<AnimatableImageVectorNode>() {
@@ -114,12 +122,20 @@ private data class AnimatableImageVectorModifier(
             imagePath,
             animationPath,
             pathStrokeWidth,
+            pathOffset,
             backgroundColor,
             fillColor
         )
 
     override fun update(node: AnimatableImageVectorNode) {
-        node.update(imagePath, animationPath, pathStrokeWidth, backgroundColor, fillColor)
+        node.update(
+            imagePath,
+            animationPath,
+            pathStrokeWidth,
+            pathOffset,
+            backgroundColor,
+            fillColor
+        )
     }
 }
 
@@ -132,6 +148,7 @@ private class AnimatableImageVectorNode(
     private var imagePath: Path,
     private var animationPath: Path,
     private var pathStrokeWidth: Dp,
+    private var pathOffset: DpOffset,
     private var backgroundColor: Color,
     private var fillColor: Color,
 ) : Modifier.Node(),
@@ -145,13 +162,14 @@ private class AnimatableImageVectorNode(
     private val segment = Path()
     private val pathMeasure = PathMeasure()
 
-    var intrinsicBounds = imagePath.getBounds()
-        private set
     private var imageBounds: Rect = Rect.Zero
     private var animationBounds: Rect = Rect.Zero
     private var centerOffset = Offset.Zero
     private var animationPathLength = 0f
     private var stroke: Stroke? = null
+
+    var intrinsicBounds = imagePath.getBounds()
+        private set
 
     val pathLength: Float
         get() = animationPathLength
@@ -162,12 +180,14 @@ private class AnimatableImageVectorNode(
         imagePath: Path,
         animationPath: Path,
         pathStrokeWidth: Dp,
+        pathOffset: DpOffset,
         backgroundColor: Color,
         fillColor: Color
     ) {
         this.imagePath = imagePath
         this.animationPath = animationPath
         this.pathStrokeWidth = pathStrokeWidth
+        this.pathOffset = pathOffset
         this.backgroundColor = backgroundColor
         this.fillColor = fillColor
         intrinsicBounds = imagePath.getBounds()
@@ -175,25 +195,29 @@ private class AnimatableImageVectorNode(
     }
 
     override fun onRemeasured(size: IntSize) {
-        // Scale path to fit size, find the minScale to fit within the size that will retain
-        // the path's bounds aspect ratio.
+        // Scale path to fit size, to keep image's aspect ratio with a fixed width/height,
+        // use Modifier.fitHeight or Modifier.fitWidth
         val tempBounds = imagePath.getBounds()
-        val scale = minOf(size.width / tempBounds.width, size.height / tempBounds.height)
+        val scaleX = size.width / tempBounds.width
+        val scaleY = size.height / tempBounds.height
         val matrix = Matrix()
         matrix.translate(
-            (size.width - tempBounds.width * scale) / 2f,
-            (size.height - tempBounds.height * scale) / 2f
+            (size.width - tempBounds.width * scaleX) / 2f,
+            (size.height - tempBounds.height * scaleY) / 2f
         )
-        matrix.scale(scale, scale)
+        matrix.scale(scaleX, scaleY)
         imagePath.transform(matrix)
         animationPath.transform(matrix)
 
         imageBounds = imagePath.getBounds()
         animationBounds = animationPath.getBounds()
-        centerOffset = imageBounds.center - animationBounds.center
+        // Try to match animation path with the base image path
+        centerOffset =
+            imageBounds.center - animationBounds.center + pathOffset.toOffset(requireDensity())
 
         pathMeasure.setPath(animationPath, forceClosed = false)
         animationPathLength = pathMeasure.length
+        // Always show the filled path when it's not animating
         drawSegment(0f, animationPathLength)
     }
 
@@ -210,12 +234,10 @@ private class AnimatableImageVectorNode(
 
     override fun ContentDrawScope.draw() {
         drawContent()
-        // Draw the base path
         drawPath(imagePath, color = backgroundColor)
-        // TODO: hardcode extra offset because I don't know how to create a proper path svg ¯\_(ツ)_/¯
-        translate(centerOffset.x, centerOffset.y + 6.dp.toPx()) {
+        translate(centerOffset.x, centerOffset.y) {
             // This is the main step to blend the animation path into the base path using
-            // BlendMode.SrcIn
+            // BlendMode.SrcIn, to see the ugly unmasked path, comment out blendMOde :-)
             drawPath(
                 segment,
                 color = fillColor,
@@ -248,6 +270,9 @@ abstract class ImageVectorScopeNode : Modifier.Node(), ModifierLocalModifierNode
     protected val intrinsicBounds: Rect
         get() = imageVector?.intrinsicBounds ?: Rect.Zero
 
+    /**
+     * Draw a path segment on top of the base image path
+     */
     protected fun drawSegment(startDist: Float, endDist: Float) {
         imageVector?.drawSegment(startDist, endDist)
     }

@@ -25,10 +25,11 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.dp
 import dev.wenhui.pathanimation.path.AnimatedImageVector
 import dev.wenhui.pathanimation.path.animateImageVector
-import dev.wenhui.pathanimation.path.fixedHeightMatchRatio
+import dev.wenhui.pathanimation.path.fitHeight
 import dev.wenhui.pathanimation.path.seekPath
 import dev.wenhui.pathanimation.ui.theme.PathAnimationTheme
 
@@ -77,9 +78,11 @@ fun PathAnimationScreen(modifier: Modifier = Modifier) {
         AnimatedImageVector(
             imageRes = R.drawable.spiral,
             pathRes = R.drawable.spiral_path,
+            // hardcode extra offset because I don't know how to create a proper path svg ¯\_(ツ)_/¯
+            pathOffset = DpOffset(0.dp, 6.dp),
             modifier = Modifier
                 .align(Alignment.Center)
-                .fixedHeightMatchRatio(200.dp)
+                .fitHeight(200.dp)
                 .conditional(animationButtonEnabled) {
                     animateImageVector(animationActive, segmentLength = segmentLength)
                 }
