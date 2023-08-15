@@ -1,0 +1,1 @@
+### This project recreate Instagram Threads logo animation on Android using Jetpack Compose. 
